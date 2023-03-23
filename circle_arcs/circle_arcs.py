@@ -2,14 +2,23 @@ import cv2
 import numpy as np
 
 def draw_arc(x1, y1, x2, y2, R):
-    C = ((x2 - x1) + x1**2 - x2**2 + y1**2 - y2 ** 2) / (y1 - y2)
+    #C = ((x2 - x1) + x1**2 - x2**2 + y1**2 - y2 ** 2) / (y1 - y2)
+
+    k = (x2 - x1) / (y1 - y2)
+    d = (x1**2 - x2**2 + y1**2 - y2 ** 2) / (2*y1 - 2*y2)
+
+    C = k
+    ty1 = (y1 - d)
 
     a = C ** 2 + 1
-    b = (-2*x1 - 2*C*y1)
-    c = (x1**2 + y1**2 - R**2)
+    b = (-2*x1 - 2*C*ty1)
+    c = (x1**2 + ty1**2 - R**2)
+
+    print(C, k, d, a, b, c)
 
     print(a, b, c, (b**2 - 4 * a * c))
     x = (-b + np.sqrt(b**2 - 4*a*c)) / (2 * a)
+
     y = x * C
     print(x, y)
 
@@ -38,7 +47,7 @@ def draw_arc(x1, y1, x2, y2, R):
 
 def run():
     while cv2.waitKey(1) != ord("q"):
-        im = draw_arc(200, 200, 500, 500, 300)
+        im = draw_arc(200, 200, 300, 500, 200)
         cv2.imshow("circle_arcs", im)
 
 if __name__ == "__main__":
