@@ -4,32 +4,12 @@ import gradio as gr
 import subprocess
 import multiprocessing as mp
 
-def launch_surf():
-    cmds = ["surf", "http://127.0.0.1:7860"]
-    subprocess.run(cmds, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-def draw_arc(x1, y1, x2, y2, R):
-    #C = ((x2 - x1) + x1**2 - x2**2 + y1**2 - y2 ** 2) / (y1 - y2)
-
-    k = (x2 - x1) / (y1 - y2)
-    d = (x1**2 - x2**2 + y1**2 - y2 ** 2) / (2*y1 - 2*y2)
-
-    C = k
-    ty1 = (y1 - d)
-
-    a = C ** 2 + 1
-    b = (-2*x1 - 2*C*ty1)
-    c = (x1**2 + ty1**2 - R**2)
-
-    print(C, k, d, a, b, c)
-
-    print(a, b, c, (b**2 - 4 * a * c))
-    x = (-b + np.sqrt(b**2 - 4*a*c)) / (2 * a)
-
-    y = x * C + d
-    print(x, y)
-
+def launch_surf(q):
+    cmds = ["electron http://127.0.0.1:7860"]
+    s = subprocess.Popen(cmds, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=True)
+    return s.pid
     
+def draw_arc(x1, y1, x2, y2, R):
     im = np.ones((1024, 1024, 3), np.uint8) * 255
 
     c1 = (185, 0, 0)
@@ -55,20 +35,53 @@ def draw_arc(x1, y1, x2, y2, R):
     draw_point(x2, y2, c2)
     draw_circle(x2, y2, c2)
 
+
+    calc_y = None
+    if y1 != y2:
+        k = (x2 - x1) / (y1 - y2)
+        d = (x1**2 - x2**2 + y1**2 - y2 ** 2) / (2*y1 - 2*y2)
+
+        C = k
+        ty1 = (y1 - d)
+
+        a = C ** 2 + 1
+        b = (-2*x1 - 2*C*ty1)
+        c = (x1**2 + ty1**2 - R**2)
+
+
+
+        x_p = b**2 - 4*a*c
+        if x_p < 0:
+            return im
+    
+        x = (-b + np.sqrt(x_p)) / (2 * a)
+        y = x * C + d
+
+        x_c = x
+        y_c = y
+        calc_y = lambda in_x : int(np.sqrt(R**2 - (in_x-x_c)**2) + y_c)
+    else:
+        x = (x1**2 - x2**2 + y1**2 - y2**2) / (2*x1 - 2 * x2)
+        y_p = R**2 - (x - x1)**2
+        if y_p < 0:
+            return im
+        
+        y = np.sqrt(y_p) + y1
+        x_c = x
+        y_c = y
+        calc_y = lambda in_x : int(np.sqrt(R**2 - (in_x-x_c)**2) + y_c)
+
     x = int(x)
     y = int(y)
 
-    draw_point(x, y, c3)
-    draw_circle(x, y, c3)
+    for x in range(x1, x2, 5):
+        draw_point(x, calc_y(x), c3)
+    
+    #draw_circle(x, y, c3)
 
     return im
 
-
-def run():
-    def close_inf():
-        demo.close()
-        demo.clear()
-        
+def create_demo(q):
     with gr.Blocks() as demo:
         with gr.Row():
             with gr.Column():
@@ -91,18 +104,23 @@ def run():
         R.change(draw_arc, [x1, y1, x2, y2, R], im)
 
         demo.load(draw_arc, [x1, y1, x2, y2, R], im)
-        cbtn.click(close_inf, None, None)
-
-
-    proc = mp.Process(target=launch_surf)
-    proc.start()
+        cbtn.click(lambda: q.put(None), None, None)
 
     demo.launch()
-    proc.terminate()
-    proc.join()
-    # while cv2.waitKey(1) != ord("q"):
-    #     im = draw_arc(200, 200, 300, 500, 200)
-    #     cv2.imshow("circle_arcs", im)
+
+def run():
+
+    q = mp.Queue()
+    gr_proc = mp.Process(target=create_demo, args=[q])
+    gr_proc.start()
+
+    pid = launch_surf(q)
+
+    q.get()
+    gr_proc.terminate()
+    gr_proc.join()
+
+    subprocess.Popen(["kill", f"{pid}"])
 
 if __name__ == "__main__":
     run()
