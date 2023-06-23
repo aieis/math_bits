@@ -42,11 +42,9 @@ def make_matrix(r, h, mw, mh):
     return alpha, M
 
 
-def rotate_im(im, theta):
+def rotate_im(h, w):
     H = 2160
     
-    h, w = im.shape[:2]
-
     mw = w // 2
     mh = h // 2
 
@@ -54,6 +52,7 @@ def rotate_im(im, theta):
     TH = h
 
     polygons = []
+    theta = 0
     
     while TH < 2000:
         alpha, M = make_matrix(r, TH, mw, mh)
@@ -64,14 +63,8 @@ def rotate_im(im, theta):
 
         n_iter = int(2*np.pi / alpha) - 1
         TH += h / n_iter 
-        r += 1
-        print(TH)
-
-
-    print(len(polygons))
-    polygons.sort(key=lambda k: k[2])
-
-
+        r += 10 / (n_iter)
+        
     canvas = np.ones((H, 1000, 3), np.uint8) * 200
     canvas_top = canvas.copy()
 
@@ -79,6 +72,9 @@ def rotate_im(im, theta):
 
     HI = 50
     WI = W // 2
+
+    print(len(polygons))
+    polygons.sort(key=lambda k: k[2])
 
     
     for theta, polygon, _ in polygons:
@@ -89,22 +85,29 @@ def rotate_im(im, theta):
             
         pts = list(map(lambda pt: (WI + pt[0], HI + pt[1]), polygon))
         pts = np.array(pts, np.int32).reshape((-1, 1, 2))
-        print(pts)
         cv2.drawContours(canvas, [pts], 0, c, -1)
 
         tr, tl = list(map(lambda pt: (WI + int(pt[0]), WI + int(pt[2])), polygon[:2]))
         cv2.line(canvas_top, tr, tl, c, 2)
 
         disp = cv2.resize(np.hstack((canvas, canvas_top)), None, fx=0.5, fy=0.5)
-        cv2.imshow("Canvas", disp)
-        cv2.waitKey(1)
+        yield disp
+    #     cv2.imshow("Canvas", disp)
+    #     cv2.waitKey(1)
 
 
-    disp = cv2.resize(np.hstack((canvas, canvas_top)), None, fx=0.5, fy=0.5)
-    cv2.imshow("Canvas", disp)
-    cv2.waitKey(0)
+    # disp = cv2.resize(np.hstack((canvas, canvas_top)), None, fx=0.5, fy=0.5)
+    # cv2.imshow("Canvas", disp)
+    # cv2.waitKey(0)
+
+
+def create_demo():
+    import gradio as gr
+    rotate_im(80, 80)
+
+    demo = gr.Interface(rotate_im, [gr.Slider(minimum = 0, maximum = 200, value=80), gr.Slider(minimum = 0, maximum = 200, value=80)], gr.Image())
+    demo.queue()
+    demo.launch()
     
 if __name__ == "__main__":
-    im = np.zeros((80, 80,3), np.uint8)
-    im[:,:,2] = 255
-    rotate_im(im, np.pi/10)
+    demo = create_demo()
