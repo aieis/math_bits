@@ -3,12 +3,14 @@ import numpy as np
 import gradio as gr
 
 ## Parameters
-ROTATION_ANGLE_DEG = 45
-NUMBER_OF_SQUARES = 10
+ROTATION_ANGLE_DEG = 10
+NUMBER_OF_SQUARES = 20
 
 Point = tuple[float, float]
 Square = tuple[Point, float, float]
 Line = tuple[Point, Point]
+
+Triangle = tuple[Point, float, float]
 
 def transformPoint(p1 : Point, rotation : float, translation : Point) -> Point:
     px, py = p1
@@ -93,50 +95,83 @@ def drawPattern(dtheta_deg, n):
     return im
 
 
-def savePattern():
-    dtheta_deg = ROTATION_ANGLE_DEG
-    n = NUMBER_OF_SQUARES
-    im = drawPattern(dtheta_deg, n)
-    cv2.imshow("Pattern", im)
-    cv2.waitKey(0)
-    cv2.imwrite("zangle.png", im)
-
 def patternGenerator(dtheta, n):
     return drawPattern(dtheta, n)
 
 
-def nextTriangle():
-    s_n = 10
-    dtheta = np.pi / 10
-
-    omega = 60 * np.pi / 180
+def nextTriangle(prevTriangle : Triangle, dtheta : float) -> Triangle:
+    (x, y), s_n, theta = prevTriangle
+    
+    omega = np.pi / 3
+    zeta = np.pi - dtheta - omega
 
     S_omega = np.sin(omega)
-    C_omega = np.cos(omega)
-    T_theta = np.tan(dtheta)
     S_theta = np.sin(dtheta)
-    C_theta = np.cos(dtheta)
-    
-    zeta = np.pi - dtheta - omega
     S_zeta = np.sin(zeta)
-
+    
     z = (s_n  * S_theta) / (S_theta + S_zeta)
-
-    
-    k = z * C_omega
     h = z * S_omega
-
     s_n1 = h / S_theta
+    p = (z, 0)
+    pn = transformPoint(p, theta, (x, y))
 
+    return (pn, s_n1, theta + dtheta)
+
+
+def drawTriangle(im : np.ndarray, triangle : Triangle):
+    (x, y), r, theta = triangle
+    omega = np.pi / 3 * 2
+
+    sides = []
+
+    sp = (0, 0)
+    for i in range(3):
+        side = ((0,0), (r, 0))
+        siden = transformLine(side, i * omega, sp)
+        sp = siden[1]
+        sides.append(siden)
+
+
+    h, _ = im.shape[:2]
+
+    nsides = [transformLine(line, theta, (x,y)) for line in sides]
+    for side in nsides:
+        p1, p2 = side
+        fx, fy = p1
+        tx, ty = p2
+
+        fp = (int(fx), int(h - fy))
+        tp = (int(tx), int(h - ty))
+
+        cv2.line(im, fp, tp, (0, 0, 0), 2)
+
+def initTriangle() -> Triangle:
+    return ((0,0), 1024, 0)
+        
+def drawPatternTriangles(dtheta_deg, n):
+    dtheta = dtheta_deg * np.pi / 180
+
+    triangle = initTriangle()
+    triangles = [triangle]
+    for _ in range(n):
+        triangle = nextTriangle(triangle, dtheta)
+        triangles.append(triangle)
+
+    im = np.ones((1024, 1024, 3), np.uint8) * 255
     
-    s_n1_2 = np.sqrt((s_n - z - k)**2 + h**2)
+    for triangle in triangles:
+        drawTriangle(im, triangle)
 
-    s_n1_3 =  z * S_omega / S_theta
+    return im
 
-    print(f"{S_omega=}, {C_omega=}, {T_theta=}, {S_theta=}, {C_theta=}, {z=}, {k=}, {h=}, {s_n1=}, {s_n1_2=}, {s_n1_3=}")
-    
+def savePattern():
+    dtheta_deg = ROTATION_ANGLE_DEG
+    n = NUMBER_OF_SQUARES
+    im = drawPatternTriangles(dtheta_deg, n)
+    cv2.imshow("Pattern", im)
+    cv2.waitKey(0)
+    cv2.imwrite("zangle.png", im)
 
-    
     
 def webui():
 
@@ -145,12 +180,13 @@ def webui():
         rot = gr.Slider(0, 360, 1)
         num = gr.Slider(0, 1000, 1)
 
-        rot.change(patternGenerator, inputs=[rot, num], outputs=im)
-        num.change(patternGenerator, inputs=[rot, num], outputs=im)
+        rot.change(drawPatternTriangles, inputs=[rot, num], outputs=im)
+        num.change(drawPatternTriangles, inputs=[rot, num], outputs=im)
         
     demo.launch()
 
 if __name__ == "__main__":
     #savePattern()
-    #webui()
-    nextTriangle()
+    webui()
+
+    
