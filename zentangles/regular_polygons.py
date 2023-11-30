@@ -23,25 +23,25 @@ def transformPoint(p1 : Point, rotation : float, translation : Point) -> Point:
     pxn = px * C - py * S + tx
     pyn = px * S + py * C + ty
 
-    return (pxn, pyn)    
-    
+    return (pxn, pyn)
+
 
 def transformLine(line: Line, rotation: float, translation: Point):
     p1, p2 = line
     return (transformPoint(p1, rotation, translation), transformPoint(p2, rotation, translation))
-    
+
 
 
 def nextPolygon(prevPolygon : Polygon, dtheta : float) -> Polygon:
     (x, y), n, s_n, theta = prevPolygon
-    
-    omega = np.pi * (n - 2) / n                                                                                                                                            
+
+    omega = np.pi * (n - 2) / n
     zeta = np.pi - dtheta - omega
 
     S_omega = np.sin(omega)
     S_theta = np.sin(dtheta)
     S_zeta = np.sin(zeta)
-    
+
     z = (s_n  * S_theta) / (S_theta + S_zeta)
     h = z * S_omega
     s_n1 = h / S_theta
@@ -80,10 +80,25 @@ def drawPolygon(im : np.ndarray, polygon : Polygon):
         cv2.line(im, fp, tp, (0, 0, 0), 2)
 
 def initPolygon(n) -> Polygon:
-    return ((0,0), n, 1024, 0)
-        
+    avl = 1024
+
+    # avgw = n*L / np.pi
+
+    L = avl * np.pi / n
+
+    x = (avl - L)
+
+    return ((x / 2,5), n, L, 0)
+
 def drawPatternPolygons(number_of_sides, dtheta_deg, n):
     dtheta = dtheta_deg * np.pi / 180
+    im = np.ones((1024, 1024, 3), np.uint8) * 255
+
+    if dtheta_deg is None or number_of_sides is None or n is None:
+        return im
+
+    if number_of_sides < 3:
+        return im
 
     polygon = initPolygon(number_of_sides)
     polygons = [polygon]
@@ -91,8 +106,8 @@ def drawPatternPolygons(number_of_sides, dtheta_deg, n):
         polygon = nextPolygon(polygon, dtheta)
         polygons.append(polygon)
 
-    im = np.ones((1024, 1024, 3), np.uint8) * 255
-    
+
+
     for polygon in polygons:
         drawPolygon(im, polygon)
 
@@ -106,25 +121,22 @@ def savePattern():
     cv2.waitKey(0)
     cv2.imwrite("zangle.png", im)
 
-    
-def webui():
 
+def webui():
     with gr.Blocks() as demo:
         im = gr.Image()
 
-        sides = gr.Slider(3, 100, 3)
+        sides = gr.Slider(3, 100, 3, step=1)
         rot = gr.Slider(0, 360, 10)
-        num = gr.Slider(0, 1000, 10)
+        num = gr.Slider(0, 1000, 10, step=1)
 
         sides.change(drawPatternPolygons, inputs=[sides, rot, num], outputs=im)
         rot.change(drawPatternPolygons, inputs=[sides, rot, num], outputs=im)
         num.change(drawPatternPolygons, inputs=[sides, rot, num], outputs=im)
 
-        
+
     demo.queue().launch()
 
 if __name__ == "__main__":
     #savePattern()
     webui()
-
-    
