@@ -40,15 +40,16 @@ class VulkanInterface {
 
 public:
     ImGui_ImplVulkan_InitInfo makeInfo();
-    uint32_t findMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties);
-    bool LoadTextureFromFile(const char* filename, TextureData* tex_data);
-    void RemoveTexture(TextureData* tex_data);
     void SetupVulkan(const char** extensions, uint32_t extensions_count);
     void SetupVulkanWindow(ImGui_ImplVulkanH_Window* wd, VkSurfaceKHR surface, int width, int height);
     void CleanupVulkan();
     void CleanupVulkanWindow();
     void FrameRender(ImGui_ImplVulkanH_Window* wd, ImDrawData* draw_data);
     void FramePresent(ImGui_ImplVulkanH_Window* wd);
+    uint32_t findMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties);
+    bool LoadTextureFromData(TextureData* tex_data, void* image_data, int width, int height);
+    void RemoveTexture(TextureData* tex_data);
+    void UpdateTexture(TextureData* tex_data, void* data, int image_size);
 
 };
 

@@ -1,31 +1,21 @@
+#include <stdio.h>          // printf, fprintf
+#include <stdlib.h>         // abort
+
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
-// Dear ImGui: standalone example application for Glfw + Vulkan
-// If you are new to Dear ImGui, read documentation from the docs/ folder + read the top of imgui.cpp.
-// Read online: https://github.com/ocornut/imgui/tree/master/docs
-
-// Important note to the reader who wish to integrate imgui_impl_vulkan.cpp/.h in their own engine/app.
-// - Common ImGui_ImplVulkan_XXX functions and structures are used to interface with imgui_impl_vulkan.cpp/.h.
-//   You will use those if you want to use this rendering backend in your engine/app.
-// - Helper ImGui_ImplVulkanH_XXX functions and structures are only used by this example (main.cpp) and by
-//   the backend itself (imgui_impl_vulkan.cpp), but should PROBABLY NOT be used by your own engine/app code.
-// Read comments in imgui_impl_vulkan.h.
-
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_vulkan.h"
-#include <stdio.h>          // printf, fprintf
-#include <stdlib.h>         // abort
 #define GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
-#include "vulkan_interop.h"
 
-// [Win32] Our example includes a copy of glfw3.lib pre-compiled with VS2010 to maximize ease of testing and compatibility with old VS compilers.
-// To link with VS2010-era libraries, VS2015+ requires linking with legacy_stdio_definitions.lib, which we do using this pragma.
-// Your own project should not be affected, as you are likely to link with a newer binary of GLFW that is adequate for your version of Visual Studio.
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_vulkan.h"
+
+#include "vulkan_interop.h"
+#include "zentangle.h"
+
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
 #endif
@@ -51,13 +41,21 @@ static void glfw_error_callback(int error, const char* description)
 
 int main(int, char**)
 {
-    // Setup GLFW window
+    
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return 1;
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "Dear ImGui GLFW+Vulkan example", NULL, NULL);
+
+    const GLFWvidmode * mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+
+    int DisplayWidth = mode->width;
+    int DisplayHeight = mode->height;
+
+    const int dim = DisplayWidth > DisplayHeight? DisplayHeight * 0.9 : DisplayWidth * 0.9;
+    
+    GLFWwindow* window = glfwCreateWindow(dim, dim, "Zentangle", NULL, NULL);
 
     // Setup Vulkan
     if (!glfwVulkanSupported())
@@ -94,10 +92,20 @@ int main(int, char**)
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
     ImGui_ImplVulkan_InitInfo init_info = interface.makeInfo();
-    ImGui_ImplVulkan_Init(&init_info, wd->RenderPass);    
+    ImGui_ImplVulkan_Init(&init_info, wd->RenderPass);
 
+
+    int nsides = 3;
+    int number_polys = 2;
+    float alpha = 0.5;
+    
     TextureData my_texture;
-    bool ret = interface.LoadTextureFromFile("../im.jpg", &my_texture);
+    Polygon pol = regular_polygon(nsides, dim);
+    cv::Mat im = zentangle(pol, alpha, number_polys, dim);
+    
+    int image_size = im.cols * im.rows * 4;
+    bool ret = interface.LoadTextureFromData(&my_texture, im.data, im.cols, im.rows);
+    
     IM_ASSERT(ret);
     {
         VkCommandPool command_pool = wd->Frames[wd->FrameIndex].CommandPool;
@@ -127,15 +135,25 @@ int main(int, char**)
         ImGui_ImplVulkan_DestroyFontUploadObjects();
     }
 
-    // Our state
-    bool show_demo_window = true;
-    bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+    bool show_menu = true;
+    
 
     // Main loop
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
+
+
+        if (ImGui::IsKeyPressed(ImGuiKey_A)) {
+            show_menu = !show_menu;
+        }
+
+        if (ImGui::IsKeyPressed(ImGuiKey_Q)) {
+            break;
+        }
+
         if (interface.g_SwapChainRebuild)
         {
             int width, height;
@@ -153,49 +171,25 @@ int main(int, char**)
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        ImGui::Begin("Vulkan Texture Test");
-        ImGui::Text("pointer = %p", my_texture.DS);
-        ImGui::Text("size = %d x %d", my_texture.Width, my_texture.Height);
+        ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+        ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::Begin("Window", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize);
         ImGui::Image((ImTextureID)my_texture.DS, ImVec2(my_texture.Width, my_texture.Height));
         ImGui::End();
+        ImGui::PopStyleVar(1);
 
-        
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
-
-        {
-            static float f = 0.0f;
-            static int counter = 0;
-
-            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &show_another_window);
-
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+        if (show_menu) {
+            ImGui::SetNextWindowPos(ImVec2(10, 10));
+            ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize / 3));
+            ImGui::Begin("Config", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize);
+            ImGui::SliderFloat("Alpha", &alpha, 0.0, 1.0);
+            ImGui::SliderInt("Sides", &nsides, 3, 50);
+            ImGui::SliderInt("Number of Polygons", &number_polys, 1, 1000);
             ImGui::End();
         }
-
         
-        if (show_another_window)
-        {
-            ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
-            ImGui::End();
-        }
 
-        // Rendering
         ImGui::Render();
         ImDrawData* draw_data = ImGui::GetDrawData();
         const bool is_minimized = (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f);
@@ -205,22 +199,26 @@ int main(int, char**)
             wd->ClearValue.color.float32[1] = clear_color.y * clear_color.w;
             wd->ClearValue.color.float32[2] = clear_color.z * clear_color.w;
             wd->ClearValue.color.float32[3] = clear_color.w;
+
             interface.FrameRender(wd, draw_data);
             interface.FramePresent(wd);
+
+            Polygon pol = regular_polygon(nsides, dim);
+            cv::Mat im = zentangle(pol, alpha, number_polys, dim);
+            interface.UpdateTexture(&my_texture, im.data, image_size);
         }
     }
 
-    // Cleanup
-    interface.RemoveTexture(&my_texture);
     err = vkDeviceWaitIdle(interface.g_Device);
     check_vk_result(err);
+    interface.RemoveTexture(&my_texture);
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
     interface.CleanupVulkanWindow();
     interface.CleanupVulkan();
-
+    
     glfwDestroyWindow(window);
     glfwTerminate();
 
