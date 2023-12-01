@@ -98,6 +98,7 @@ int main(int, char**)
     int nsides = 3;
     int number_polys = 2;
     float alpha = 0.5;
+    bool custom_polygon = false;
     
     TextureData my_texture;
     Polygon pol = regular_polygon(nsides, dim);
@@ -139,7 +140,6 @@ int main(int, char**)
 
     bool show_menu = true;
     
-
     // Main loop
     while (!glfwWindowShouldClose(window))
     {
@@ -203,7 +203,10 @@ int main(int, char**)
             interface.FrameRender(wd, draw_data);
             interface.FramePresent(wd);
 
-            Polygon pol = regular_polygon(nsides, dim);
+            if (!custom_polygon) {
+                pol = regular_polygon(nsides, dim);
+            }
+            
             cv::Mat im = zentangle(pol, alpha, number_polys, dim);
             interface.UpdateTexture(&my_texture, im.data, image_size);
         }
