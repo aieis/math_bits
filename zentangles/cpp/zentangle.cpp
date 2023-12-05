@@ -2,12 +2,12 @@
 
 #include <cstdio>
 #include <cmath>
+#include <functional>
 #include <math.h>
 
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-
 
 Point transform_point(Point p, double rotation, Point translation)
 {
@@ -39,6 +39,60 @@ Polygon next_polygon(Polygon pol, double alpha)
     return {nverts};
 }
 
+double prod(int start, int end, std::function<double(int i)> fn)
+{
+    double acc = 1;
+
+    for (int i = start; i <= end; i++) {
+        acc *= fn(i);
+    }
+    
+    return 0;
+}
+
+Polygon next_polygon_theta(Polygon pol, double theta)
+{
+    std::vector<double> zeta;
+    std::vector<double> S;
+    std::vector<double> A;
+    std::vector<double> z;
+
+    size_t n = pol.vertices.size();
+    A.resize(n);
+    S.resize(n);
+    zeta.resize(n);
+    z.resize(n);
+    
+    for (int i = 0; i < n; i++) {
+        Point p1 = pol.vertices[i];
+        Point p2 = pol.vertices[(i + 1) % n];
+        Point p3 = pol.vertices[(i + 2) % n];
+
+        Point v1 = {p2.x - p1.x, p2.y - p1.y};
+        Point v2 = {p3.x - p2.x, p3.y - p1.y};
+
+        double v1m = std::sqrt(v1.x*v1.x + v1.y * v1.y );
+        double v2m = std::sqrt(v2.x*v2.x + v2.y * v2.y );
+
+        double dp = v1.x*v2.x + v1.y * v2.y;
+        
+        A[i] = std::acos(dp / (v1m * v2m));
+        S[i] = v1m;
+        zeta[i] = std::sin(M_PI - A[i] - theta);
+    }
+
+    double S_theta = std::sin(theta);
+    double znf = (1 + std::pow(-1, n+1)*std::sin(z[n-2]) * prod(0, n-1, [zeta, S_theta](int i) {
+        return zeta[i] / S_theta;
+    }));
+
+    for (int i = n - 2; i >= 0; i--) {
+        
+    }
+
+    
+}
+
 void draw_polygon(cv::Mat& im, Polygon pol)
 {
     int h = im.rows;
@@ -52,9 +106,8 @@ void draw_polygon(cv::Mat& im, Polygon pol)
 
 Polygon regular_polygon(int n, int dim)
 {
-    const double pi = M_PI;
     double avl = 0.8 * dim;
-    double l = avl * pi / n;
+    double l = avl * M_PI / n;
     double x = (dim - l) / 2;
     double y = (dim - avl) / 2;
     Point sp = {x, y};
@@ -62,19 +115,21 @@ Polygon regular_polygon(int n, int dim)
     std::vector<Point> vertices;
     vertices.push_back(sp);
 
-    double omega = pi * (n - 2) / n;
+    double omega = M_PI * (n - 2) / n;
 
     for (int i = 1; i < n; i++) {
         Point p1 = vertices[i-1];
 
         Point p2 = {l, 0};
-        p2 = transform_point(p2, (i-1) * (pi - omega), p1);
+        p2 = transform_point(p2, (i-1) * (M_PI - omega), p1);
 
         vertices.push_back(p2);
     }
 
     return {vertices};
 }
+
+
 
 cv::Mat zentangle(Polygon pol, double alpha, int num, int dim)
 {

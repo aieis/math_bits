@@ -139,6 +139,10 @@ int main(int, char**)
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     bool show_menu = true;
+
+    bool drawing = false;
+    Polygon custom_poly;
+
     
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -186,6 +190,10 @@ int main(int, char**)
             ImGui::SliderFloat("Alpha", &alpha, 0.0, 1.0);
             ImGui::SliderInt("Sides", &nsides, 3, 50);
             ImGui::SliderInt("Number of Polygons", &number_polys, 1, 1000);
+
+            if (ImGui::Button("DrawPolygon")) {
+                
+            }
             ImGui::End();
         }
         
