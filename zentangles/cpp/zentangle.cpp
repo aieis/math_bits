@@ -27,7 +27,7 @@ Point linear_interp(Point p1, Point p2, double alpha)
 }
 
 
-Polygon next_polygon(Polygon pol, double alpha)
+Polygon next_polygon_lerp(Polygon pol, double alpha)
 {
     std::vector<Point> nverts;
     for (int i = 0; i < pol.vertices.size(); i++) {
@@ -50,18 +50,22 @@ double prod(int start, int end, std::function<double(int i)> fn)
     return 0;
 }
 
-Polygon next_polygon_theta(Polygon pol, double theta)
+Polygon next_polygon(Polygon pol, double theta)
 {
     std::vector<double> zeta;
     std::vector<double> S;
     std::vector<double> A;
     std::vector<double> z;
 
+    std::vector<double> prods;
+    double S_theta = std::sin(theta);
     size_t n = pol.vertices.size();
     A.resize(n);
     S.resize(n);
     zeta.resize(n);
     z.resize(n);
+    prods.resize(n);
+
     
     for (int i = 0; i < n; i++) {
         Point p1 = pol.vertices[i];
@@ -69,28 +73,49 @@ Polygon next_polygon_theta(Polygon pol, double theta)
         Point p3 = pol.vertices[(i + 2) % n];
 
         Point v1 = {p2.x - p1.x, p2.y - p1.y};
-        Point v2 = {p3.x - p2.x, p3.y - p1.y};
+        Point v2 = {p3.x - p2.x, p3.y - p2.y};
 
         double v1m = std::sqrt(v1.x*v1.x + v1.y * v1.y );
         double v2m = std::sqrt(v2.x*v2.x + v2.y * v2.y );
 
         double dp = v1.x*v2.x + v1.y * v2.y;
         
-        A[i] = std::acos(dp / (v1m * v2m));
+        A[i] = M_PI - std::acos(dp / (v1m * v2m));
         S[i] = v1m;
-        zeta[i] = std::sin(M_PI - A[i] - theta);
+        zeta[i] = M_PI - A[i] - theta;
+        prods[i] = (i == 0? 1 : prods[i-1]) * std::sin(zeta[i])/S_theta;
     }
 
-    double S_theta = std::sin(theta);
-    double znf = (1 + std::pow(-1, n+1)*std::sin(z[n-2]) * prod(0, n-1, [zeta, S_theta](int i) {
-        return zeta[i] / S_theta;
-    }));
+    double znf = 1 + std::pow(-1, n+1)*std::sin(zeta[n-1])/S_theta * prods[n-2];
+
+    double b = 0;
+    
+    for (int i = 0; i < n - 1; i++) {
+        b += std::pow(-1, i+1) * S[i] * (i == 0? 1 : prods[i-1]);        
+    }    
+    
+    b = S[n-1] + std::sin(zeta[n-1])/S_theta * b;
+
+    z[n-1] = b / znf;
 
     for (int i = n - 2; i >= 0; i--) {
-        
+        z[i] = S[i] - (std::sin(zeta[i]) / S_theta) * z[i+1];
     }
 
-    
+    // printf("i | side  | angle | zeta | prods | z \n");
+    // for(int i = 0; i < n; i++) {
+    //     printf("%d | %f  | %f | %f | %f | %f\n", i, S[i], A[i], zeta[i], prods[i], z[i]);
+    // }
+
+
+    std::vector<Point> nverts;
+    for (int i = 0; i < n; i++) {
+        Point p1 = pol.vertices[i];
+        Point p2 = pol.vertices[(i + 1) % n];
+        nverts.push_back(linear_interp(p1, p2, z[i]/S[i]));
+    }
+
+    return {nverts};
 }
 
 void draw_polygon(cv::Mat& im, Polygon pol)
@@ -104,9 +129,9 @@ void draw_polygon(cv::Mat& im, Polygon pol)
     }        
 }
 
-Polygon regular_polygon(int n, int dim)
+Polygon regular_polygon(int n, int dim, double factor)
 {
-    double avl = 0.8 * dim;
+    double avl = 0.8 * dim * factor;
     double l = avl * M_PI / n;
     double x = (dim - l) / 2;
     double y = (dim - avl) / 2;
@@ -131,12 +156,12 @@ Polygon regular_polygon(int n, int dim)
 
 
 
-cv::Mat zentangle(Polygon pol, double alpha, int num, int dim)
+cv::Mat zentangle(Polygon pol, double theta, int num, int dim)
 {
     std::vector<Polygon> polys;
     polys.push_back(pol);
     for (int i = 1; i < num; i++) {
-        polys.push_back(next_polygon(polys[i-1], alpha));
+        polys.push_back(next_polygon(polys[i-1], theta));
     }
 
     cv::Mat im(dim, dim, CV_8UC4, {255, 255, 255, 255});
@@ -187,7 +212,7 @@ Polygon input_polygon(int dim)
     UserData d {vertices, cx, cy, h};    
     
     const char* winname = "polygon drawing window";
-    cv::namedWindow(winname, cv::WINDOW_GUI_NORMAL);
+    cv::namedWindow(winname, cv::WINDOW_GUI_NORMAL | cv::WINDOW_AUTOSIZE);
     cv::setWindowTitle(winname, "Draw your polygon!");
     cv::setMouseCallback(winname, callback, (void*) &d);
 
@@ -243,22 +268,24 @@ Polygon input_polygon(int dim)
 }
 
 
-// int main(int argc, char** argv)
-// {
+#ifdef ZENTANGLE_MAIN
+int main(int argc, char** argv)
+{
 
-//     double alpha = 0.5;
-//     int num = 10;
+    double alpha = M_PI/3 * 2.8;
+    int num = 5;
 
-//     Polygon pol;
+    Polygon pol;
 
-//     if (argc <= 1) {
-//         pol = input_polygon(1024);
-//     } else {
-//         pol = regular_polygon(atoi(argv[1]), 1024);    
-//     }
+    if (argc <= 1) {
+        pol = input_polygon(2048);
+    } else {
+        pol = regular_polygon(atoi(argv[1]), 2048, 0.5);    
+    }
     
-//     auto im = zentangle(pol, alpha, num, 1024);
-//     while (cv::waitKey(0) != 'q') {
-//         cv::imshow("Zentangle", im);
-//     }
-// }
+    auto im = zentangle(pol, alpha, num, 2048);
+    while (cv::waitKey(0) != 'q') {
+        cv::imshow("Zentangle", im);
+    }
+}
+#endif

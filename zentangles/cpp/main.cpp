@@ -53,7 +53,7 @@ int main(int, char**)
     int DisplayWidth = mode->width;
     int DisplayHeight = mode->height;
 
-    const int dim = DisplayWidth > DisplayHeight? DisplayHeight * 0.9 : DisplayWidth * 0.9;
+    const int dim = 2048; //DisplayWidth > DisplayHeight? DisplayHeight * 0.9 : DisplayWidth * 0.9;
     
     GLFWwindow* window = glfwCreateWindow(dim, dim, "Zentangle", NULL, NULL);
 
@@ -97,12 +97,13 @@ int main(int, char**)
 
     int nsides = 3;
     int number_polys = 2;
-    float alpha = 0.5;
+    float theta = 0.5;
+    float scale = 1;
     bool custom_polygon = false;
     
     TextureData my_texture;
-    Polygon pol = regular_polygon(nsides, dim);
-    cv::Mat im = zentangle(pol, alpha, number_polys, dim);
+    Polygon pol = regular_polygon(nsides, dim, scale);
+    cv::Mat im = zentangle(pol, theta, number_polys, dim);
     
     int image_size = im.cols * im.rows * 4;
     bool ret = interface.LoadTextureFromData(&my_texture, im.data, im.cols, im.rows);
@@ -187,9 +188,10 @@ int main(int, char**)
             ImGui::SetNextWindowPos(ImVec2(10, 10));
             ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize / 3));
             ImGui::Begin("Config", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoResize);
-            ImGui::SliderFloat("Alpha", &alpha, 0.0, 1.0);
+            ImGui::SliderFloat("Theta", &theta, -3.14, 3.14);
             ImGui::SliderInt("Sides", &nsides, 3, 50);
             ImGui::SliderInt("Number of Polygons", &number_polys, 1, 1000);
+            ImGui::SliderFloat("Scale", &scale, 0.001, 5.0);
 
             if (ImGui::Button("DrawPolygon")) {
                 
@@ -212,10 +214,10 @@ int main(int, char**)
             interface.FramePresent(wd);
 
             if (!custom_polygon) {
-                pol = regular_polygon(nsides, dim);
+                pol = regular_polygon(nsides, dim, scale);
             }
             
-            cv::Mat im = zentangle(pol, alpha, number_polys, dim);
+            cv::Mat im = zentangle(pol, theta, number_polys, dim);
             interface.UpdateTexture(&my_texture, im.data, image_size);
         }
     }

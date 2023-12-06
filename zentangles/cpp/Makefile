@@ -24,4 +24,4 @@ zentangle.o: zentangle.cpp zentangle.h
 	$(CC) -o zentangle.o -c zentangle.cpp $(CFLAGS) $(LDFLAGS)
 
 poly: zentangle.cpp
-	$(CC) -o poly zentangle.cpp $(CFLAGS) $(LDFLAGS)
+	$(CC) -DZENTANGLE_MAIN=0 -o poly zentangle.cpp $(CFLAGS) $(LDFLAGS)

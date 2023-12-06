@@ -11,6 +11,6 @@ struct Polygon {
     std::vector<Point> vertices;
 };
 
-Polygon regular_polygon(int n, int dim);
+Polygon regular_polygon(int n, int dim, double scale);
 Polygon input_polygon(int dim);
 cv::Mat zentangle(Polygon pol, double alpha, int num, int dim);
